@@ -15,10 +15,10 @@ WORKFLOW_REPO=main.nf #shashidhar22/airr_seq_pipelines
 QUEUE=campus-new
 
 # Define scratch directory
-SCRATCH=path_to_scratch_directory
+SCRATCH=/fh/scratch/delete90/warren_h/cfar/
 
 # Define params file
-PARAMS=path_to_params_file
+PARAMS=params/cfar.yaml
 
 # Load the Nextflow module (if running on rhino/gizmo)
 ml Nextflow
