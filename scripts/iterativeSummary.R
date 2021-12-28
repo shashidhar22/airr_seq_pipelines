@@ -46,11 +46,17 @@ nucleotide_table <- productiveSeq(study_table, aggregate = "junction")
 #' @param minimum_sequences The minimum number of sequences per sample
 #' @return Tibble with the diversity and number of sequences per sample
 randomSample <- function(study_table,  min_sequences) {
+    top_aminos <- study_table %>% 
+        productiveSeq() %>% 
+        topSeqs(top = 100) %>% 
+        pull(junction_aa) %>% 
+        unique()
     study_table <- study_table %>% 
         uncount(duplicate_count) %>% 
         sample_n(size = min_sequences, replace = FALSE) %>% 
-        dplyr::group_by(junction, junction_aa, v_call, j_call, d_call, v_family, j_family, d_family, reading_frame) %>% 
-        dplyr::summarize(duplicate_count = sum(duplicate_count)) %>% 
+        dplyr::group_by(repertoire_id, junction, junction_aa, v_call, j_call, 
+            d_call, v_family, j_family, d_family, reading_frame) %>% 
+        dplyr::summarize(duplicate_count = n()) %>% 
         dplyr::ungroup() %>%
         dplyr::mutate(duplicate_frequency = duplicate_count/sum(duplicate_count)) %>%
         dplyr::select(repertoire_id, everything())
@@ -60,12 +66,14 @@ randomSample <- function(study_table,  min_sequences) {
     summary_table <- clonality(study_table)
     translation_efficacy <- study_table %>% 
         productiveSeq(aggregate = "junction") %>%
+        filter(junction_aa %in% top_aminos) %>%
         group_by(junction_aa) %>% 
         summarize(translation_efficacy = n()) %>% 
         pull(translation_efficacy) %>% 
         mean()
     summary_table <- summary_table %>%
         mutate(translation_efficacy = translation_efficacy)
+    print(summary_table)
     return(summary_table)
 }
 #' Iterative sampling
@@ -74,13 +82,14 @@ randomSample <- function(study_table,  min_sequences) {
 # calculates the diversity of each sample
 bootstrapSummary <- function(study_table, iterations, min_sequences) {
     summary_table <- rerun(randomSample(study_table, min_sequences), .n = iterations) %>% 
-        bind_rows() %>% 
-        group_by(repertoire_id) %>% 
-        summarize(clonality = mean(clonality), 
-            gini = mean(gini), 
-            unique_sequences = mean(unique_sequences),
-            total_sequences = mean(total_sequences),
-            translation_efficacy = mean(translation_efficacy)) 
+        bind_rows() 
+    
+    #    group_by(repertoire_id) %>% 
+    #    summarize(clonality = mean(clonality), 
+    #        gini = mean(giniCoefficient), 
+    #        unique_sequences = mean(unique_sequences),
+    #        total_sequences = mean(total_sequences),
+    #        translation_efficacy = mean(translation_efficacy)) 
     return(summary_table)
 }
 
@@ -88,9 +97,25 @@ bootstrapSummary <- function(study_table, iterations, min_sequences) {
 summary_table <- bootstrapSummary(study_table, parser$iterations, 
     parser$min_sequences)
 
+# Get translation efficacy tables
+top_aminos <- study_table %>% 
+        productiveSeq() %>% 
+        topSeqs(top = 100) %>% 
+        pull(junction_aa) %>% 
+        unique()
+translation_efficacy <- study_table %>%
+    productiveSeq(aggregate = "junction") %>%
+    filter(junction_aa %in% top_aminos) %>%
+    group_by(repertoire_id, junction_aa) %>% 
+    summarize(translation_efficacy = n()) 
+
 # Save the summary table
 repertoire_id = summary_table %>% 
     pull(repertoire_id) %>%
     unique()
 out_file = paste(repertoire_id, "_avg_summary.rda", sep = "")
 save(summary_table, file = out_file)
+
+# Save the translation efficacy table
+out_file = paste(repertoire_id, "_translation_efficacy.rda", sep = "")
+save(translation_efficacy, file = out_file)
