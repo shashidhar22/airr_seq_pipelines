@@ -11,7 +11,7 @@ nextflow.enable.dsl=2
 // - Tuple with sample name, study table, nucleotide table, amino acid table,
 //   and summary table
 // EMITTED CHANNELS:
-// - immuno_data_path :- Channel immune data file
+// - sample_data :- Channel immune data file
 //
 // NOTE: 
 //
@@ -201,18 +201,146 @@ process get_summary_stats {
   module 'R/4.1.0-foss-2020b'
   label 'high_mem'
   errorStrategy 'retry'
+  cache 'false'
   publishDir "$params.output.data/rdata/by_sample/summary", mode : "copy", pattern : "*_avg_summary.rda"
+  publishDir "$params.output.data/rdata/by_sample/translation_efficacy", mode : "copy", pattern : "*_translation_efficacy.rda"
   input:
-    path study_table
+    each path(study_table)
     val study_iterations
     val study_minimum_sequences
   output:
     path "*_avg_summary.rda", emit: summary_tables
-
+    path "*_translation_efficacy.rda", emit: translation_efficacy_tables
   script:
     """
     Rscript $moduleDir/scripts/iterativeSummary.R -r ${study_table} \
       -i ${study_iterations} -c ${study_minimum_sequences} > stdout.txt 2> stderr.txt
     """
 }
+
+// Process the input AIRR-Seq tables and summarize the prevalence of public
+// TRB sequences from VDJdb.
+//
+// PROCESS INPUTS:
+// - Raw sample RDA files
+//  (Source: read_data.out.sample_data)
+// - Path to VDJDb slim database file
+//  (Source: vdjdb_path)
+//
+// PROCESS OUTPUTS:
+// - TSV file containing count of public sequences and cumulative frequency
+//
+// EMITTED CHANNELS:
+// - public_amino_table : RDA file with annotated amino table
+//
+// NOTE: 
+//
+// TODO: 
+process get_public_tables {
+  module 'R/4.1.0-foss-2020b'
+  label 'high_mem'
+  errorStrategy 'retry'
+  publishDir "$params.output.data/tables/by_sample/publics", mode : "copy", 
+    pattern : "*_public_summary.tsv"
+  input:
+    each path(sample_data)
+    path vdjdb_path
+  output:
+    path "*_public_summary.tsv"
+    path "*_public_annotated.rda", emit: public_amino_table
+  script:
+    """
+    Rscript $moduleDir/scripts/findPublicSeq.R -d ${vdjdb_path} -m lenient \
+    > stdout.txt 2> stderr.txt
+    """
+}
+
+// Run GLIPH2 given amino acid and hla information
+//
+// PROCESS INPUTS:
+// - Sampled AIRR data aggregated by amino acid
+//  (Source: gliph_amino_table)
+// - HLA information when available
+//  (Source: gliph_hla_table)
+//
+// PROCESS OUTPUTS:
+// - TARBALL containing GLIPH results
+//
+// EMITTED CHANNELS:
+// - gliph_results : TARBALL file containing GLIPH results
+//
+// NOTE: 
+//
+// TODO: 
+process run_gliph {
+  module 'R/4.1.0-foss-2020b'
+  module 'GLIPH2'
+  label 'high_mem'
+  errorStrategy 'retry'
+  publishDir "$params.output.data/gliph/${run_name}", mode : "copy", pattern : "*.tar.gz"
+  input:
+    path amino_table
+    path hla_table
+    path gref
+    path lref 
+    path vref 
+    val study_id
+    val run_name
+  output:
+    path "${study_id}_gliph.tar.gz", emit: gliph_results
+  script:
+    """
+    Rscript $moduleDir/scripts/prepGliph2.R -a ${amino_table} -m ${hla_table} \
+    -r ${gref} -l ${lref} -v ${vref} \
+    -s ${study_id} > stdout.txt 2> stderr.txt
+    irtools.centos -c ${study_id}_gliph.txt > gstdout.txt 2> gstderr.txt
+    tar -czf ${study_id}_gliph.tar.gz ./${study_id}*
+    """
+}
+
+// Calculate the edit distance between sequences and generate network plot
+//
+// PROCESS INPUTS:
+// - Amino acid table for each sample in the analysis
+//  (Source: split_sampled_data.out.amino_tables)
+// - Study metadata RDA file
+//  (Source: process_metadata.out.meta_rda_path)
+// - The minimum number of sequences per sample
+//  (Source: min_count)
+//
+// PROCESS OUTPUTS:
+// - RDA file containing the graph data structure
+// - PDF file containing the network plot
+//
+// EMITTED CHANNELS:
+// - graph_structure : RDA file containing the graph data structure
+// - network_plot : PDF file containing the network plot
+//
+// NOTE: 
+//
+// TODO: 
+process get_networks {
+  module 'R/4.1.0-foss-2020b'
+  label 'high_mem'
+  errorStrategy 'retry'
+  publishDir "$params.output.data/rdata", mode : "copy", pattern : "*.rda"
+  publishDir "$params.output.data/figures/network", mode : "copy", 
+    pattern : "*.pdf"
+  input:
+    each path(amino_table)
+    path meta_path
+    val min_count
+  output:
+    path "${sample_id}_graph.rda", emit: graph_structure
+    path "${sample_id}_network.pdf", emit: network_plot
+  script:
+    sample_id = amino_table.getSimpleName().replaceAll("_amino", "")
+    """
+    Rscript $moduleDir/scripts/getEditDistance.R -a ${amino_table} \
+    -m ${meta_path} -n ${min_count}
+    """
+}
+
+
+
 
