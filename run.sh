@@ -15,7 +15,7 @@ WORKFLOW_REPO=main.nf #shashidhar22/airr_seq_pipelines
 QUEUE=campus-new
 
 # Define scratch directory
-SCRATCH=/fh/scratch/delete90/warren_h/cfar/
+SCRATCH=/path/to/scratch/directory
 
 # Define params file
 PARAMS=params/cfar.yaml
@@ -37,7 +37,7 @@ nextflow \
     run \
     -c ${NXF_CONFIG} \
     ${WORKFLOW_REPO} \
-    -entry gliphRunner \
+    -entry cfarExperimentOne \
     -w  ${SCRATCH} \
     -with-tower \
     -params-file ${PARAMS} \
