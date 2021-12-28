@@ -55,8 +55,6 @@ load(parser$study_table) # Load the study data
 load(parser$nucleotide_table) # Load the nucleotide level aggregation data
 load(parser$amino_table) # Load the amino acid level aggregation data
 load(parser$summary_table) # Load the study summary table  
-load(parser$meta_table) # Load the meta data
-
 #' Filter out samples that do not meet the minimum sequence threshold
 summary_table <- summary_table %>% 
     filter(total_sequences >= parser$min_seq)
