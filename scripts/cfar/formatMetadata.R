@@ -40,25 +40,35 @@ dean_hla <- dean_metadata %>%
     separate_rows(hla_type, sep = ",") %>%
     group_by() %>% 
     mutate(allele = str_remove(hla_type, "HLA-"),
-        allele = str_extract(allele, "\\w+")) %>%
+        allele_name = str_extract(allele, "\\w+")) %>%
     ungroup() %>%
-    group_by(sample_name, allele) %>%
+    group_by(sample_name, allele_name) %>%
     mutate(allele_number = row_number()) %>%
     filter(allele_number < 3) %>%
-    mutate(allele = str_c(allele, allele_number, sep = "")) %>%
-    pivot_wider(id_cols = sample_name, values_from = hla_type, 
-        names_from = allele) %>%
+    mutate(allele_name = str_c(allele_name, allele_number, sep = "")) %>%
+    pivot_wider(id_cols = sample_name, values_from = allele, 
+        names_from = allele_name) %>%
     mutate(B2 = if_else(is.na(B2), B1, B2), A2 = if_else(is.na(A2), A1, A2)) %>%
-    rename(aAllele1 = A1, aAllele2 = A2, bAllele1 = B1, bAllele2 = B2) 
-
+    rename(aAllele1 = A1, aAllele2 = A2, bAllele1 = B1, bAllele2 = B2, 
+        patientID = sample_name) %>%
+    mutate(aAllele1 = str_trim(aAllele1), aAllele2 = str_trim(aAllele2), 
+        bAllele1 = str_trim(bAllele1), bAllele2 = str_trim(bAllele2),
+        sampleID = patientID, timePoint = "Normal")
+        
 # Get the HLA information from CFAR metadata
-cfar_metadata <- read_excel(parser$cpath, sheet = "CFAR_Sample_info") %>%
+cfar_metadata <- read_excel(parser$cpath, 
+        sheet = "CFAR_Sample_info",
+        col_types = c("text", "text", "date", "text", "text")) %>%
     filter(str_detect(sampleID, "CFAR")) 
 
-cfar_hla <- read_excel(parser$cpath, sheet = "CFAR_HLA_info") %>%
+cfar_hla <- read_excel(parser$cpath, sheet = "CFAR_HLA_info",
+        col_types = c("text", "date", "text", "text", "text", "text", "text", 
+        "text", "text", "text", "text", "text", "text", "text", "text", "text", 
+        "text", "text", "text", "text")) %>%
     right_join(cfar_metadata, by = "patientID") 
 # Merge the HLA information from Dean and CFAR metadata
-study_hla_table <- bind_rows(cfar_hla, dean_hla)
+study_hla_table <- bind_rows(cfar_hla, dean_hla) %>% 
+    mutate(dateART = as_date(dateART), dateTCR = as_date(dateTCR))
 
 # The metadata will be used at many different steps of the analysis for various
 # purposes. The code below will generate multiple views of the metadata that can
@@ -66,7 +76,8 @@ study_hla_table <- bind_rows(cfar_hla, dean_hla)
 
 # Let's first combine the Sample information table and patient information table
 # for the Dean and CFAR data sets.
-cfar_sample_table <- read_excel(parser$cpath, sheet = "CFAR_Sample_info") %>%
+cfar_sample_table <- read_excel(parser$cpath, sheet = "CFAR_Sample_info",
+        col_types = c("text", "text", "date", "text", "text")) %>%
     filter(str_detect(sampleID, "CFAR")) 
 dean_sample_table <- read_tsv(parser$npath) %>% 
     select(sample_name) %>%
@@ -76,14 +87,18 @@ dean_sample_table <- read_tsv(parser$npath) %>%
         time_group = "Normal")
 study_sample_table <- bind_rows(cfar_sample_table, dean_sample_table) %>%
     mutate(patientID = as_factor(patientID),
-        dateTCR = ymd(dateTCR),
+        dateTCR = as_date(dateTCR),
         time_point = as_factor(timePoint),
         repertoire_id = as_factor(sampleID)) %>%
     select(-sampleID, -timePoint)
 
 # Let's merge Patient information table next
-cfar_patient_table <- read_excel(parser$cpath, sheet = "CFAR_Patient_info") %>%
-    filter(str_detect(patientID, "CFAR"))
+cfar_patient_table <- read_excel(parser$cpath, sheet = "CFAR_Patient_info",
+        col_types = c("text", "text", "text", "text", "date", "text", "text", "text", "text", "date")) %>% 
+        mutate(birthYear = ymd(birthYear, truncated = 2L),
+            deathYear = ymd(deathYear, truncated = 2L),
+            dateART = as_date(dateART),
+            dateMinEvidenceHIV = as_date(dateMinEvidenceHIV))
 dean_patient_table <- read_tsv(parser$npath) %>%
     select(sample_name) %>%
     rename(patientID = sample_name) %>%
@@ -93,7 +108,6 @@ study_patient_table <- bind_rows(cfar_patient_table, dean_patient_table) %>%
         dateART = as_date(dateART),
         sex = as_factor(sex),
         dateMinEvidenceHIV = ymd(dateMinEvidenceHIV),
-        birthYear = as_date(birthYear),
         age_at_art = (birthYear %--% dateART) %/% years(1))
 
 # Let's format the Viral load, CD4 counts and infection tables 
@@ -105,7 +119,8 @@ study_viral_load <- read_excel(parser$cpath, sheet = "CFAR_Viral_load") %>%
     mutate(time_point = if_else(date_collection <= dateART, 
         "Pre-ART", "Post-ART"))
 
-study_cd4_count <- read_excel(parser$cpath, sheet = "CFAR_CD4_count") %>%
+study_cd4_count <- read_excel(parser$cpath, sheet = "CFAR_CD4_count",
+        col_types = c("text", "date", "text", "numeric", "text")) %>%
     mutate(patientID = as_factor(patientID),
         collectionDate = as_date(collectionDate)) %>%
     rename(date_collection = collectionDate) %>%
@@ -113,8 +128,11 @@ study_cd4_count <- read_excel(parser$cpath, sheet = "CFAR_CD4_count") %>%
     mutate(time_point = if_else(date_collection <= dateART, 
         "Pre-ART", "Post-ART"))
 
-study_infections <- read_excel(parser$cpath, sheet = "CFAR_Coinfections") %>%
-    mutate(patientID = as_factor(patientID))
+study_infections <- read_excel(parser$cpath, sheet = "CFAR_Coinfections",
+        col_types = c("text", "date", "date", "date", "date", "date", "date",
+            "date", "date", "date", "date", "date", "date", "date", "date")) %>%
+    mutate(patientID = as_factor(patientID),
+            across(EBV:Esophagus_cancer, as_date)) 
 
 # Store all these output to an RDA object
 out_file <- "Study_meta_frame.rda"
