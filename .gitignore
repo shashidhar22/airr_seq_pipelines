@@ -40,6 +40,8 @@ vignettes/*.pdf
 
 # Yaml files
 *.yaml
-
+!_template.yaml
 # Nextflow temp files
 .nextflow*
+cfar_run.sh
+cfar_reanalysis.code-workspace
