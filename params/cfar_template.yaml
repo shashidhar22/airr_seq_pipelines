@@ -1,0 +1,20 @@
+inputs:
+  cfar_data: '/path/to/cfar/data/*_CFAR.tsv'
+  dean_data: '/path/to/dean/data//*.tsv'
+meta:
+  min_sequences: 5000
+  iterations: 100
+  cfar_meta: '/path/to/cfar/metadata/CFAR_metadata.xlsx'
+  dean_meta: '/path/to/dean/metadata/Dean_metadata.tsv'
+  vdjdb_path: '/path/to/VdjDB/vdjdb.slim.txt'
+output:
+  data: '/path/to/nextflow/output'
+  normal_count: 173
+  study_id: 'cfar_run_one'
+run_two:
+  normal_count: 30  
+  study_id: 'cfar_run_two'
+gliph:
+  gref: "/path/to/gliph/reference/human_v2.0/ref_CD48_v2.0.txt"
+  vref: "/path/to/gliph/reference/human_v2.0/ref_V_CD48_v2.0.txt"
+  lref: "/path/to/gliph/reference/human_v2.0/ref_L_CD48_v2.0.txt"
