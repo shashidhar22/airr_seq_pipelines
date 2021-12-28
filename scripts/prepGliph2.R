@@ -31,11 +31,11 @@ option_list <- list(
 )
 parser <- optparse::parse_args(optparse::OptionParser(option_list=option_list), 
     print_help_and_exit = TRUE)
-load(parser$apath)
+gliph_amino_table <- readRDS(parser$apath)
 
-atable <- amino_table %>% 
+atable <- gliph_amino_table %>% 
     mutate(cdrA = NA) %>%
-    select(junction_aa, v_call, j_call, cdrA, gliph_id)
+    select(junction_aa, v_call, j_call, cdrA, gliph_id, duplicate_frequency) 
 
 htable <- read_tsv(parser$hpath) # HLA table
 sid <- parser$sid
@@ -49,6 +49,8 @@ write_tsv(atable, gliph_in, col_names = FALSE)
 write_tsv(htable, hla_in, col_names = FALSE)
 
 gliph_config <- paste(sid, "gliph.txt", sep = "_")
+
+#            paste("hla_file", hla_in, sep = "="),
 
 config <- c(paste("out_prefix", sid, sep = "="),
             paste("cdr3_file", gliph_in, sep = "="),
