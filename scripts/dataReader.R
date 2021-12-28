@@ -25,7 +25,22 @@ parser <- optparse::parse_args(optparse::OptionParser(option_list=option_list),
 study_table <- LymphoSeq2::readImmunoSeq(parser$data_path) %>% 
     filter(nchar(junction_aa) >= 6 & 
         str_sub(junction_aa, start = 1, end = 1 ) == "C" & 
-        str_sub(junction_aa, start = -1L, end = -1L) == "F")
+        str_sub(junction_aa, start = -1L, end = -1L) == "F") %>%
+    mutate(v_call = if_else(str_detect(v_call,"\\*"), 
+            str_c(
+                str_c("TRBV", as.numeric(str_extract(v_call, "\\d+"), sep = "")), 
+                    as.numeric(str_extract(v_call,"\\d+$")), sep = "-"),
+            str_c("TRBV", as.numeric(str_extract(v_call, "\\d+")), sep = "")),
+        j_call = if_else(str_detect(j_call,"\\*"),
+            str_c(
+                str_c("TRBJ", as.numeric(str_extract(j_call, "\\d+"), sep = "")), 
+                    as.numeric(str_extract(j_call,"\\d+$")), sep = "-"),
+            str_c("TRBJ", as.numeric(str_extract(j_call, "\\d+")), sep = "")),
+        d_call = if_else(str_detect(d_call,"\\*"),
+            str_c(
+                str_c("TRBD", as.numeric(str_extract(d_call, "\\d+"), sep = "")), 
+                    as.numeric(str_extract(d_call,"\\d+$")), sep = "-"),
+            str_c("TRBD", as.numeric(str_extract(d_call, "\\d+")), sep = "")))
 nucleotide_table <- LymphoSeq2::productiveSeq(study_table, 
     aggregate = "junction")
 amino_table <- LymphoSeq2::productiveSeq(study_table,
