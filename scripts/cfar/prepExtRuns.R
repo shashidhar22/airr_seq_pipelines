@@ -67,8 +67,7 @@ sample_table <- amino_table %>%
 # Format metadata for GLIPH runs
 gliph_hla_table <- study_hla_table %>% 
     right_join(sample_table, by = "patientID") %>%
-    select(-dateART, -patientID, -sampleID, -dateTCR, -timePoint, 
-        -time_group) %>%
+    select(-patientID, -years_rel_to_art, -timePoint, -time_group, -sex, -age_at_collection) %>%
     pivot_longer(-repertoire_id, names_to = "name", values_to = "hla") %>%
     mutate(hla = str_extract(hla, "\\w+\\*\\d+")) %>% 
     pivot_wider(id_cols = repertoire_id, names_from = name, values_from = hla,
@@ -102,8 +101,7 @@ saveRDS(gliph_amino_table_two, file = gliph_two_amino_file)
 # Format metadata for DeepTCR runs
 deeptcr_hla_table <- study_hla_table %>% 
     right_join(sample_table, by = "patientID") %>% 
-    select(-dateART, -patientID, -sampleID, -dateTCR, -timePoint, 
-        -time_group) %>%
+    select(-patientID, -years_rel_to_art, -timePoint, -time_group, -sex, -age_at_collection) %>%
     pivot_longer(-repertoire_id, names_to = "name", values_to = "hla") %>%
     pivot_wider(id_cols = repertoire_id, names_from = name, values_from = hla,
         values_fn = first) %>%
