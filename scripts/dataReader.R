@@ -5,9 +5,7 @@
 #' study data merging module.
 #' 
 #' @param data_path Path to ImmunoSeq data
-#' @param sample_name Tuple containing sample name and file name
-#' @param sampling_rate The depth to which the data is sampled
-#' @param n_iterations Number of iterations to perform
+#' @param min_sequences The minimum number of sequences needed in a sample
 library(LymphoSeq2)
 library(tidyverse)
 set.seed(12357) # Set the seed for reproducibility
@@ -41,6 +39,7 @@ study_table <- LymphoSeq2::readImmunoSeq(parser$data_path) %>%
                 str_c("TRBD", as.numeric(str_extract(d_call, "\\d+"), sep = "")), 
                     as.numeric(str_extract(d_call,"\\d+$")), sep = "-"),
             str_c("TRBD", as.numeric(str_extract(d_call, "\\d+")), sep = "")))
+
 nucleotide_table <- LymphoSeq2::productiveSeq(study_table, 
     aggregate = "junction")
 amino_table <- LymphoSeq2::productiveSeq(study_table,
