@@ -1,5 +1,40 @@
 nextflow.enable.dsl=2
 
+// Filter datasets that have less than the minimum number of sequences
+//
+// PROCESS INPUTS:
+// - Path to ImmunoSEQ file
+//  (Source: data path channel)
+// - Minimum number of sequences
+//  (Source: min sequences channel)
+// PROCESS OUTPUTS:
+// - AIRR Seq files that have a minimum number of sequences
+//
+// EMITTED CHANNELS:
+// - input_data :- Channel immune data files
+//
+// NOTE: 
+//
+// TODO: 
+process filter_immuno_files {
+  module 'R/4.1.0-foss-2020b'
+  label 'high_mem'
+  errorStrategy 'retry'
+  publishDir "$params.output.data/tables/", mode : "copy", pattern : "*.csv"
+  input:
+    path immuno_path
+    val min_sequences
+  output:
+    path "filtered/*.tsv", emit: input_data
+    path "Sequence_count_summary.csv"
+  script:
+    """
+    mkdir filtered
+    Rscript $moduleDir/scripts/filterDatasets.R -m ${min_sequences} > stdout.txt 2> stderr.txt
+    """
+}
+
+
 // Read the ImmunoSEQ and generate different views for each sample in the 
 // cohort.
 //
@@ -21,13 +56,13 @@ process read_immuno_files {
   label 'high_mem'
   errorStrategy 'retry'
   input:
-    path immuno_path
+    each immuno_path
   output:
     path "${sample}*.rda", emit: sample_data
   script:
     sample = immuno_path.getSimpleName()
     """
-    Rscript $moduleDir/scripts/dataReader.R -d ${immuno_path} > stdout.txt 2> stderr.txt
+    Rscript $moduleDir/scripts/dataReader.R -d ${immuno_path}  > stdout.txt 2> stderr.txt
     """
 }
 
@@ -60,14 +95,16 @@ process merge_immuno_tables {
   publishDir "$params.output.data/rdata/", mode : "copy"
   input:
     path sample_data
+    val study_id
   output:
     path "study_table.rda", emit: study_table
     path "nucleotide_table.rda", emit: nucleotide_table
     path "amino_table.rda", emit: amino_table
     path "summary_table.rda", emit: summary_table
+    path "${study_id}_LS.rda", emit: shiny_object
   script:
     """
-    Rscript $moduleDir/scripts/dataMerger.R > stdout.txt 2> stderr.txt
+    Rscript $moduleDir/scripts/dataMerger.R -s ${study_id} > stdout.txt 2> stderr.txt
     """
 }
 
@@ -200,8 +237,8 @@ process split_sampled_data {
 process get_summary_stats {
   module 'R/4.1.0-foss-2020b'
   label 'high_mem'
-  errorStrategy 'retry'
-  cache 'false'
+  errorStrategy 'ignore'
+  cache 'true'
   publishDir "$params.output.data/rdata/by_sample/summary", mode : "copy", pattern : "*_avg_summary.rda"
   publishDir "$params.output.data/rdata/by_sample/translation_efficacy", mode : "copy", pattern : "*_translation_efficacy.rda"
   input:
@@ -246,7 +283,7 @@ process get_public_tables {
     each path(sample_data)
     path vdjdb_path
   output:
-    path "*_public_summary.tsv"
+    path "*_public_summary.tsv", emit: public_summaries
     path "*_public_annotated.rda", emit: public_amino_table
   script:
     """
@@ -288,6 +325,8 @@ process run_gliph {
     val run_name
   output:
     path "${study_id}_gliph.tar.gz", emit: gliph_results
+    path "${study_id}_cluster.csv", emit: gliph_table 
+    path "${study_id}_HLA.csv", emit: gliph_hla_table
   script:
     """
     Rscript $moduleDir/scripts/prepGliph2.R -a ${amino_table} -m ${hla_table} \
@@ -341,6 +380,36 @@ process get_networks {
     """
 }
 
+// Prepare control database
+//
+// PROCESS INPUTS:
+// - AIRR data path for each sample
+//  (Source: data_path)
+//
+// PROCESS OUTPUTS:
+// - RDA file containing the minimum field required for the database
+//
+// EMITTED CHANNELS:
+// - database_path : RDA file containing the minimum field required for the database
+//
+// NOTE: 
+//
+// TODO: 
+process prep_controls {
+  module 'R/4.1.0-foss-2020b'
+  label 'high_mem'
+  errorStrategy 'retry'
+  publishDir "$params.output.data", mode : "copy", pattern : "*.rda"
+  input:
+    each path(data_path)
+  output:
+    path "${sample_id}.rda", emit: graph_structure
+  script:
+    sample_id = data_path.getSimpleName()
+    """
+    Rscript $moduleDir/scripts/prepControls.R -d ${data_path}
+    """
+}
 
 
 
