@@ -11,6 +11,14 @@ library(optparse)
 library(readxl)
 library(LymphoSeq2)
 set.seed(12357) # Set the seed for reproducibility
+# Accept arguments
+option_list <- list(
+    make_option(c("-s", "--study_id"), 
+                type="character",  
+                help="Study ID",
+                dest="study_id")
+)
+parser <- parse_args(OptionParser(option_list=option_list), print_help_and_exit = TRUE)
 # Load and merge study tables. Here a function is need because RDA stores the 
 # variable names as well, hence it cannot be merged directly.
 load_study <- function(study_file) {
@@ -48,3 +56,8 @@ summary_table <- list.files(pattern = "_summary.rda") %>%
     purrr::map(load_summary) %>%
     dplyr::bind_rows()
 save(summary_table, file = "summary_table.rda")
+
+# Save object for LymphoSeq Shiny input
+out_file <- paste(parser$study_id, "LS.rda", sep = "_")
+save(study_table, nucleotide_table, amino_table, summary_table,
+    file = out_file)
