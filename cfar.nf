@@ -24,14 +24,12 @@ process process_metadata {
   errorStrategy 'retry'
   publishDir "$params.output.data/rdata/", mode : "copy"
   input:
-    path cfar_meta_path
-    path norm_meta_path
+    path meta_path
   output:
     path "Study_meta_frame.rda", emit: meta_rda_path
   script:
     """
-    Rscript $moduleDir/scripts/cfar/formatMetadata.R -c ${cfar_meta_path} \
-      -n ${norm_meta_path} 
+    Rscript $moduleDir/scripts/cfar/formatMetadata.R -m ${meta_path} 
     """
 }
 // Format the HLA information and prepare the amino acid data for external tools 
@@ -92,5 +90,96 @@ process prepare_external_runs {
     """
 }
 
+// Plot alluvial plots for all samples
+//
+// PROCESS INPUTS:
+// - Study amino acid table
+//  (Source: merge_immuno_tables.out.amino_table)
+// - Study metadata RDA file
+//  (Source: process_metadata.out.meta_rda_path)
+//
+// PROCESS OUTPUTS:
+// - PDF files containing the alluvial plots
+//
+// EMITTED CHANNELS:
+// - alluvial_plot : PDF files containing the alluvial plot
+//
+// NOTE: 
+//
+// TODO: 
+process get_alluvials {
+  module 'R/4.1.0-foss-2020b'
+  label 'high_mem'
+  errorStrategy 'retry'
+  publishDir "$params.output.data/figures/alluvial", mode : "copy", pattern : "alluvial.pdf"
+  input:
+    path amino_table
+    path meta_path
+    path gliph_table 
+    path gliph_hla_table
+    path mcpas_table
+    path vdjdb_table
+  output:
+    path "*_alluvial.pdf", emit: alluvial_plots
+  script:
+    """
+    Rscript $moduleDir/scripts/cfar/getAlluvials.R -a ${amino_table} \
+    -m ${meta_path} -g ${gliph_table} -h ${gliph_hla_table} \
+    -c ${mcpas_table} -v ${vdjdb_table}
+    """
+}
+
+// Plot plots for all samples
+//
+// PROCESS INPUTS:
+// - Study amino acid table
+//  (Source: merge_immuno_tables.out.amino_table)
+// - Study metadata RDA file
+//  (Source: process_metadata.out.meta_rda_path)
+//
+// PROCESS OUTPUTS:
+// - PDF files containing the alluvial plots
+//
+// EMITTED CHANNELS:
+// - alluvial_plot : PDF files containing the alluvial plot
+//
+// NOTE: 
+//
+// TODO: 
+process get_plots {
+  module 'R/4.1.0-foss-2020b'
+  label 'high_mem'
+  errorStrategy 'retry'
+  publishDir "$params.output.data/figures/", mode : "copy", pattern: "*.pdf"
+  input:
+    path amino_table
+    path meta_path
+    path summary_tables
+    path repertoire_summary
+    path translation_efficacy_tables
+    path public_tables
+    path network_tables
+    path gliph_table 
+    path gliph_hla_table
+    path mcpas_table
+    path vdjdb_table
+  output:
+    path "*.pdf", emit: study_plots
+  script:
+    """
+    Rscript $moduleDir/scripts/cfar/plotCohortFigure.R -a ${amino_table} \
+    -m ${meta_path} -r ${repertoire_summary}
+    Rscript $moduleDir/scripts/cfar/plotCohortComparison.R -a ${amino_table} \
+    -m ${meta_path} -r ${repertoire_summary}
+    Rscript $moduleDir/scripts/cfar/plotPublics.R -a ${amino_table} \
+    -m ${meta_path} -r ${repertoire_summary}
+    Rscript $moduleDir/scripts/cfar/plotNetworks.R -a ${amino_table} \
+    -m ${meta_path} -r ${repertoire_summary}
+    Rscript $moduleDir/scripts/cfar/plotLengths.R -a ${amino_table} \
+    -m ${meta_path} -r ${repertoire_summary}
+    Rscript $moduleDir/scripts/cfar/plotSimilarity.R -a ${amino_table} \
+    -m ${meta_path} -r ${repertoire_summary}
+    """
+}
 
 
